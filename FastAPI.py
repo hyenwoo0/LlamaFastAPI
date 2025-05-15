@@ -102,12 +102,13 @@ async def chat(request: Request, body: ChatRequest):
         return JSONResponse(status_code=500, content={"error": str(e)})  # 500 에러 응답
 
 # ------------------------- 서버 실행 -------------------------
-nest_asyncio.apply()                                 # 이벤트 루프 중첩 방지 (Jupyter 환경 대응)
-
 # 로컬 서버 실행 함수 정의
 def run():
-    uvicorn.run(app, host="0.0.0.0", port=8000)      # 0.0.0.0은 외부 접속 허용
+    # FastAPI 앱 실행 (포트 8000, 외부 접속 허용)
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
 # 직접 실행 시 서버 시작
 if __name__ == "__main__":
     run()
+
