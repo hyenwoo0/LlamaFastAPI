@@ -32,13 +32,13 @@ logging.basicConfig(
     ]
 )
 
-# ------------------------- T5 모델 로딩 -------------------------
-logging.info("🔄 T5 모델 로딩 중...")
-tokenizer = T5Tokenizer.from_pretrained("t5-small")
-model = T5ForConditionalGeneration.from_pretrained("t5-small")
+# ------------------------- T5-base 모델 로딩 -------------------------
+logging.info("🔄 T5-base 모델 로딩 중...")
+tokenizer = T5Tokenizer.from_pretrained("t5-base")
+model = T5ForConditionalGeneration.from_pretrained("t5-base")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = model.to(device)
-logging.info("✅ T5 모델 로딩 완료")
+logging.info("✅ T5-base 모델 로딩 완료")
 
 # ------------------------- FastAPI 초기화 -------------------------
 app = FastAPI()
@@ -84,7 +84,11 @@ async def chat(request: Request, body: ChatRequest):
         answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
         logging.info(f"✅ 응답 완료 ({elapsed:.2f}s): {answer[:60]}...")
 
-        return {"response": answer, "time_taken": round(elapsed, 2)}
+        return {
+            "response": answer,
+            "time_taken": round(elapsed, 2),
+            "model": "t5-base"
+        }
 
     except Exception as e:
         logging.exception("❌ 에러 발생")
