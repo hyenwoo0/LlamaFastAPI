@@ -90,7 +90,12 @@ def fetch_papers(query: str, retmax: int = 5) -> List[dict]:
                 title_en = article_data.findtext("ArticleTitle", default="(No Title)")
 
                 # 초록
-                abstract = article_data.findtext(".//AbstractText", default="")
+                abstract_nodes = article_data.findall(".//AbstractText")
+                abstract = " ".join([
+                    "".join(node.itertext()).strip()
+                    for node in abstract_nodes
+                    if node is not None
+                ])
 
                 # 학술지 이름
                 journal = article_data.findtext(".//Journal/Title", default="학술지 없음")
@@ -131,6 +136,7 @@ def fetch_papers(query: str, retmax: int = 5) -> List[dict]:
                 papers.append({
                     "title_en": title_en,
                     "abstract": summary,
+                    "abstract_full": abstract,
                     "authors": authors_str,
                     "year": year or "연도 정보 없음",
                     "pub_date": pub_date,
