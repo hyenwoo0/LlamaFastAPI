@@ -14,8 +14,8 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-# Transformers 라이브러리: T5 모델
-from transformers import T5Tokenizer, T5ForConditionalGeneration
+# Transformers 라이브러리: MT5 모델
+from transformers import MT5Tokenizer, MT5ForConditionalGeneration
 import torch
 
 # ------------------------- 로그 설정 -------------------------
@@ -32,13 +32,16 @@ logging.basicConfig(
     ]
 )
 
-# ------------------------- T5-base 모델 로딩 -------------------------
-logging.info("🔄 T5-base 모델 로딩 중...")
-tokenizer = T5Tokenizer.from_pretrained("t5-base")
-model = T5ForConditionalGeneration.from_pretrained("t5-base")
+# ------------------------- MT5 모델 로딩 -------------------------
+HF_MODEL_ID = "pleyel/chatbot_test"
+
+logging.info("🔄 Hugging Face 모델 로딩 중...")
+tokenizer = MT5Tokenizer.from_pretrained(HF_MODEL_ID)
+model = MT5ForConditionalGeneration.from_pretrained(HF_MODEL_ID)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = model.to(device)
-logging.info("✅ T5-base 모델 로딩 완료")
+model.eval()
+logging.info("✅ 모델 로딩 완료")
 
 # ------------------------- FastAPI 초기화 -------------------------
 app = FastAPI()
@@ -63,7 +66,6 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     message: str
 
-# ------------------------- /chat 엔드포인트 -------------------------
 @app.post("/chat")
 @limiter.limit("5/10seconds")
 async def chat(request: Request, body: ChatRequest):
@@ -72,22 +74,46 @@ async def chat(request: Request, body: ChatRequest):
         return JSONResponse(status_code=400, content={"error": "메시지가 비어 있습니다."})
 
     logging.info(f"📩 요청 수신: {message}")
-    prompt = f"answer question: {message}"
 
     try:
-        inputs = tokenizer(prompt, return_tensors="pt", max_length=512, truncation=True).to(device)
+        inputs = tokenizer(
+            message,
+            return_tensors="pt",
+            max_length=512,
+            padding="max_length",
+            truncation=True
+        ).to(device)
+
+        max_output_len = 64  # ✅ 출력 길이 하드코딩 또는 상단에서 따로 설정해도 OK
 
         start_time = time.time()
-        outputs = model.generate(**inputs, max_new_tokens=128)
+        with torch.no_grad():
+            outputs = model.generate(
+                input_ids=inputs["input_ids"],
+                attention_mask=inputs["attention_mask"],
+                max_length=max_output_len,
+                do_sample=True,
+                temperature=0.8,
+                top_k=50,
+                top_p=0.9,
+                repetition_penalty=2.0,
+                no_repeat_ngram_size=3
+            )
         elapsed = time.time() - start_time
 
-        answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        answer = tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
+
+        # 반복 문장 필터링
+        tokens = answer.split()
+        if len(tokens) > 6 and tokens[:3] == tokens[3:6]:
+            answer = "답변이 반복되어 정확히 인식되지 않았습니다. 다시 질문해 주세요."
+
         logging.info(f"✅ 응답 완료 ({elapsed:.2f}s): {answer[:60]}...")
 
         return {
             "response": answer,
             "time_taken": round(elapsed, 2),
-            "model": "t5-base"
+            "model": HF_MODEL_ID
         }
 
     except Exception as e:
